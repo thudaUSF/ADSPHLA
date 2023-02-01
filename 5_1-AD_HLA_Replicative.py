@@ -171,12 +171,13 @@ def run_ttest(finallist,df1,df2):
 
 def run_zproportion(finallist,df1,df2,receptor):
     casecount = np.array([len(df1.index), len(df1.index) + len(df2.index)])
-
     df3,df4 = filterdf([receptor],clinicalisnot)
-    controlcount = np.array([len(df3.index), len(df3.index) + len(df4.index)])
-    proportioncase = casecount[0]/casecount[1]
-    proportioncontrol = controlcount[0]/controlcount[1]
-    stat, pval = proportions_ztest(controlcount, casecount) #bigger sample size comes after
+    successcount = np.array([len(df1.index), len(df3.index)])
+    totalcount = np.array([len(df1.index) + len(df2.index), len(df3.index) + len(df4.index)])
+    
+    proportioncase = successcount[0]/totalcount[0]
+    proportioncontrol = successcount[1]/totalcount[1]
+    stat, pval = proportions_ztest(successcount, totalcount)
     #print('{0:0.3f}'.format(pval))
     finallist.extend([proportioncase, len(df3.index),len(df4.index), proportioncontrol, pval])
     if proportioncase > proportioncontrol:
@@ -194,6 +195,8 @@ def get_data(sampletype,conditions,df,dfcomp,test):
     if test == "MW":
         list = run_MW(finallist,df,dfcomp)
     if test == "ttest":
+        finallist[0] = (df.Age.count())
+        finallist[1] = (dfcomp.Age.count()) #since some don't have age
         list = run_ttest(finallist,df,dfcomp)
     if test == "zproportion":
         list = run_zproportion(finallist,df,dfcomp,conditions[0])
