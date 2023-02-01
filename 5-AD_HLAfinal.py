@@ -92,7 +92,6 @@ HLA = HLA.drop(columns=['SampleID','Apairs','Bpairs','Cpairs','DPB1pairs','DQB1p
 conditions = []
 allconditions = False
 Cases = pd.DataFrame() #All Cases that fit the requirements
-RCases = pd.DataFrame() #Replicative set of Cases, Randomly generates half from cases
 Casesdrop = pd.DataFrame() #For Cases that fit requirements, remove duplicate people (for example: multiple reads of a HLA-TRB-V on same person that match) dropped
 brainresults = []
 ageresults = []
@@ -170,13 +169,13 @@ def run_ttest(finallist,df1,df2):
     return finallist
 
 def run_zproportion(finallist,df1,df2,receptor):
-    casecount = np.array([len(df1.index), len(df1.index) + len(df2.index)])
-
     df3,df4 = filterdf([receptor],clinicalisnot)
-    controlcount = np.array([len(df3.index), len(df3.index) + len(df4.index)])
-    proportioncase = casecount[0]/casecount[1]
-    proportioncontrol = controlcount[0]/controlcount[1]
-    stat, pval = proportions_ztest(controlcount, casecount) #bigger sample size comes after
+    successcount = np.array([len(df1.index), len(df3.index)])
+    totalcount = np.array([len(df1.index) + len(df2.index), len(df3.index) + len(df4.index)])
+    
+    proportioncase = successcount[0]/totalcount[0]
+    proportioncontrol = successcount[1]/totalcount[1]
+    stat, pval = proportions_ztest(successcount, totalcount) #bigger sample size comes after
     #print('{0:0.3f}'.format(pval))
     finallist.extend([proportioncase, len(df3.index),len(df4.index), proportioncontrol, pval])
     if proportioncase > proportioncontrol:
@@ -194,6 +193,8 @@ def get_data(sampletype,conditions,df,dfcomp,test):
     if test == "MW":
         list = run_MW(finallist,df,dfcomp)
     if test == "ttest":
+        finallist[0] = (df.Age.count())
+        finallist[1] = (dfcomp.Age.count()) #since some don't have age
         list = run_ttest(finallist,df,dfcomp)
     if test == "zproportion":
         list = run_zproportion(finallist,df,dfcomp,conditions[0])
@@ -201,20 +202,15 @@ def get_data(sampletype,conditions,df,dfcomp,test):
     return data
 
 #Testing for survival differences for all HLA in Checklist HLA
-RHLA = HLA.sample(frac = .5) #Creates half replicative set that will be used for all run throughs of HLA (All R before variable name - Replicative Set)
 
 for index, row in ChecklistHLA.iterrows():
     item = row[0] #item = HLA being checked from checklist e.g. A*02:01
     conditions = [item]
     df1,df2 = filterdf(conditions,HLA)
-    Rdf1,Rdf2 = filterdf(conditions,RHLA)
     
     data = get_data(sampletype,conditions,df1,df2,"MW")
-    Rdata = get_data(sampletype,conditions,Rdf1,Rdf2,"MW")
     Adata = get_data(sampletype,conditions,df1,df2,"ttest")
-    ARdata = get_data(sampletype,conditions,Rdf1,Rdf2,"ttest")
     Propdata = get_data(sampletype,conditions,df1,df2,"zproportion")
-    
     
     conditions.append("notAPOE4")
     dfapo1,dfapo2 = filterdf(conditions,HLA)
@@ -232,10 +228,8 @@ for index, row in ChecklistHLA.iterrows():
 
     if data[4] < .05:
         brainresults.append(data)
-        brainresults.append(Rdata)
     if Adata[6] < .05:
         ageresults.append(Adata)
-        ageresults.append(ARdata)
     if Propdata[8] < .05:
         propresults.append(Propdata)
     if notAPOE4data[5] < .05:
